@@ -401,38 +401,38 @@ with tab1:
 with tab2:
     st.info("💡 CSV లేదా Excel ఫైల్‌ను అప్‌లోడ్ చేయండి. పైన సెట్ చేసిన జాయ్‌స్టిక్ సెట్టింగ్స్ అన్ని లేబుల్స్‌కి అప్లై అవుతాయి.")
 
+    # --- NEW SAMPLE TEMPLATE (SHOWS THE 3rd GENERATION SHEET FORMAT) ---
     sample_data = {
-        'awb': ['VV1001', 'VV1002'], 
-        'product_name': ['General', 'Electronics'], 
-        'product_value': ['1000', '5000'],
-        'label_date': [datetime.now().strftime("%d-%m-%Y"), datetime.now().strftime("%d-%m-%Y")], 
-        'ref': ['REF01', 'REF02'], 
-        'weight': ['0.5', '1.2'],
-        'total_amount': ['1100', '5200'], 
-        'to_name': ['Rahul Kumar', 'Suresh Kumar'], 
-        'to_phone': ['9876543210', '9999999999'],
-        'to_pincode': ['500001', '520001'], 
-        'to_address': ['H.No 1-2, Ameerpet, Hyderabad, Telangana', 'Plot 45, Benz Circle, Vijayawada, AP'], 
-        'from_name': ['Vayu Vega Hub', 'Vayu Vega Hub'],
-        'from_phone': ['8888888888', '8888888888'], 
-        'from_address': ['Hub Main Road', 'Hub Main Road'],
-        'mode': ['Surface', 'Express'], 
-        'risk': ['Carrier', 'No Risk']
+        'Consignment (CN) No.': ['VV1001', 'VV1002'], 
+        'Customer Reference Number': ['REF01', 'REF02'], 
+        'Receiver\'s Name': ['Rahul Kumar', 'Suresh Kumar'],
+        'Receiver\'s Address Line 1': ['H.No 1-2, Ameerpet', 'Plot 45, Benz Circle'], 
+        'Receiver\'s Address Line 2': ['Hyderabad, Telangana', 'Vijayawada, AP'],
+        'Receiver\'s Pincode': ['500001', '520001'], 
+        'Receiver\'s Phone Number': ['9876543210', '9999999999'],
+        'weight (kg)': ['0.5', '1.2'],
+        'Description': ['General Items', 'Electronics'],
+        'Declared Value': ['1000', '5000'],
+        'VAS Amount': ['1100', '5200'],
+        'Sender\'s Name': ['Vayu Vega Hub', 'Vayu Vega Hub'],
+        'Sender\'s Address Line 1': ['Hub Main Road', 'Hub Main Road'],
+        'Sender\'s Phone number': ['8888888888', '8888888888'],
+        'Service Type': ['Surface', 'Express']
     }
     sample_df = pd.DataFrame(sample_data)
     
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         csv_data = sample_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Sample CSV", data=csv_data, file_name="vayu_vega_sample.csv", mime="text/csv")
+        st.download_button("📥 Download Sample CSV", data=csv_data, file_name="vayu_vega_master_sample.csv", mime="text/csv")
     with col_s2:
         output_xlsx = io.BytesIO()
         with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
             sample_df.to_excel(writer, index=False)
-        st.download_button("📥 Download Sample Excel", data=output_xlsx.getvalue(), file_name="vayu_vega_sample.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("📥 Download Sample Excel", data=output_xlsx.getvalue(), file_name="vayu_vega_master_sample.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     st.markdown("---")
-    uploaded_file = st.file_uploader("Upload Your CSV or Excel File", type=['csv', 'xlsx'])
+    uploaded_file = st.file_uploader("Upload Your CSV or Excel File (Supports all 3 sheet variations)", type=['csv', 'xlsx'])
     
     if uploaded_file:
         if uploaded_file.name.endswith('.csv'):
@@ -466,12 +466,72 @@ with tab2:
 
                 with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
                     for idx, row in selected_rows.iterrows():
-                        l_dict = row.to_dict()
-                        l_dict.pop('Select', None)
+                        raw_dict = row.to_dict()
+                        
+                        # --- Dynamic Address Assembly for the 3rd Sheet Type ---
+                        to_addr_1 = str(raw_dict.get("Receiver's Address Line 1", '')).strip()
+                        to_addr_2 = str(raw_dict.get("Receiver's Address Line 2", '')).strip()
+                        to_city = str(raw_dict.get("Receiver's City", '')).strip()
+                        to_state = str(raw_dict.get("Receiver's State", '')).strip()
+                        
+                        assembled_to_addr = ", ".join([p for p in [to_addr_1, to_addr_2, to_city, to_state] if p and p.lower() != 'nan'])
+                        
+                        from_addr_1 = str(raw_dict.get("Sender's Address Line 1", '')).strip()
+                        from_addr_2 = str(raw_dict.get("Sender's Address Line 2", '')).strip()
+                        from_city = str(raw_dict.get("Sender's City", '')).strip()
+                        from_state = str(raw_dict.get("Sender's State", '')).strip()
+                        
+                        assembled_from_addr = ", ".join([p for p in [from_addr_1, from_addr_2, from_city, from_state] if p and p.lower() != 'nan'])
+
+                        # =========================================================================
+                        # MASTER DYNAMIC MAPPER (SUPPORTS ALL 3 SHEET TYPES AUTOMATICALLY)
+                        # =========================================================================
+                        l_dict = {
+                            # 1. Waybill / AWB
+                            'awb': raw_dict.get('Consignment (CN) No.', raw_dict.get('Waybill', raw_dict.get('awb', f'VV-BULK-{idx}'))),
+                            
+                            # 2. Reference Number
+                            'ref': raw_dict.get('Customer Reference Number', raw_dict.get('Reference No', raw_dict.get('ref', 'REF'))),
+                            
+                            # 3. Consignee / Receiver Name
+                            'to_name': raw_dict.get("Receiver's Name", raw_dict.get('Consignee Name', raw_dict.get('to_name', ''))),
+                            
+                            # 4. Assembled or Single Address
+                            'to_address': assembled_to_addr if assembled_to_addr else raw_dict.get('Address', raw_dict.get('to_address', '')),
+                            
+                            # 5. Destination Pincode
+                            'to_pincode': raw_dict.get("Receiver's Pincode", raw_dict.get('Pincode', raw_dict.get('to_pincode', ''))),
+                            
+                            # 6. Phone Numbers (Checks Mobile, Phone, Receiver fields)
+                            'to_phone': raw_dict.get("Receiver's Phone Number", raw_dict.get('Mobile', raw_dict.get('Phone', raw_dict.get('to_phone', '')))),
+                            
+                            # 7. Weight Setup
+                            'weight': raw_dict.get('weight (kg)', raw_dict.get('Weight', raw_dict.get('weight', '0.0'))),
+                            
+                            # 8. Product Description
+                            'product_name': raw_dict.get('Description', raw_dict.get('Product to be Shipped', raw_dict.get('product_name', 'General'))),
+                            
+                            # 9. Declared Product Value
+                            'product_value': raw_dict.get('Declared Value', raw_dict.get('Package Amount', raw_dict.get('product_value', '0'))),
+                            
+                            # 10. Total Billing / Cod Amount
+                            'total_amount': raw_dict.get('VAS Amount', raw_dict.get('Cod Amount', raw_dict.get('Package Amount', raw_dict.get('total_amount', '0')))),
+                            
+                            # 11. Sender Details Setup
+                            'from_name': raw_dict.get("Sender's Name", raw_dict.get('Seller Name', raw_dict.get('from_name', 'Vayu Vega Hub'))),
+                            'from_address': assembled_from_addr if assembled_from_addr else raw_dict.get('Seller Address', raw_dict.get('from_address', '')),
+                            'from_phone': raw_dict.get("Sender's Phone number", raw_dict.get('from_phone', '8888888888')),
+                            
+                            # 12. Shipping Mode & Miscellaneous
+                            'mode': raw_dict.get('Service Type', raw_dict.get('Shipping Mode', raw_dict.get('mode', 'Surface'))),
+                            'risk': raw_dict.get('risk', 'Carrier'),
+                            'label_date': raw_dict.get('label_date', datetime.now().strftime("%d-%m-%Y"))
+                        }
+                        # =========================================================================
                         
                         single_pdf = generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path, display_options, label_size, ctrl=ctrl)
                         
-                        f_name = f"{l_dict.get('awb', idx)}_{l_dict.get('ref', 'REF')}.pdf"
+                        f_name = f"{l_dict.get('awb')}_{l_dict.get('ref')}.pdf"
                         zip_file.writestr(f_name, single_pdf.getvalue())
                         
                         generate_vayu_vega_label(l_dict, logo_bytes, show_logo, folder_logo_path, display_options, label_size, ctrl=ctrl, canvas_obj=bulk_c)
@@ -479,7 +539,7 @@ with tab2:
                 bulk_c.save()
                 bulk_pdf_buffer.seek(0)
                 
-                st.success(f"🎯 {len(selected_rows)} Labels Generated with Customized Dashboard Setup!")
+                st.success(f"🎯 {len(selected_rows)} Labels Generated from Multi-Format Upload System Layout!")
                 col_d1, col_d2 = st.columns(2)
                 with col_d1:
                     st.download_button(f"📥 Download ZIP ({label_size})", zip_buffer.getvalue(), "Selected_Labels.zip")
