@@ -747,7 +747,7 @@ elif choice == "📊 PDF→Excel":
     if pdf_files and st.button("🔄 Execute Extraction Pipeline Matrix", use_container_width=True):
         all_extracted_data = []
         
-        with St.spinner("Parsing target binary stream channels..."):
+        with st.spinner("Parsing target binary stream channels..."):
             for pdf_file in pdf_files:
                 with pdfplumber.open(pdf_file) as pdf:
                     for page in pdf.pages:
